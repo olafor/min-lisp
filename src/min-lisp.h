@@ -7,6 +7,6 @@ Lisp *lisp_init (void);
 
 void lisp_free (Lisp * lisp);
 
-void lisp_run_expr (Lisp * lisp, const char * c);
+int lisp_run_expr (Lisp * lisp, const char * expr, int * error);
 
 #endif /* _MIN_LISP_H_ */
