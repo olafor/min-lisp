@@ -3,19 +3,19 @@
 
 #include "../src/min-lisp.h"
 
-void assert_expr_result (const char *expr, int expected_result);
+void assert_expr_result (char *expr, int expected_result);
 
 int
 main () {
     assert_expr_result ("(+ 2 3)", 5);
     assert_expr_result ("(% 5 2)", 1);
     assert_expr_result ("(< 5 2)", 0);
-    assert_expr_result ("(> 5 2)", 1);
-    //assert_expr_result ("(- 9 (+ (* 2 2) 3))", 2);
+    assert_expr_result ("(> 20 2)", 1);
+    assert_expr_result ("(- 22 (+ (* 2 2) 5))", 13);
 }
 
 void
-assert_expr_result (const char * expr, int expected_result) {
+assert_expr_result (char * expr, int expected_result) {
     Lisp *lisp;
     int result;
     int err;

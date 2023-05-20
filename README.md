@@ -1,4 +1,4 @@
-# Min (Olas) Lisp
+# Min Lisptolk
 
 ## Syfte
 Jag skriver ett IoT-projekt i C, och behöver ett bekvämt sätt att skicka instruktioner till enhet i fält. 
@@ -7,3 +7,8 @@ Därmed skriver jag en förenklad lisptolk i C.
 
 ## Specifikation
 
+### Operationer som stöds
+
+### Satser som stöds
+
+### Praktisk användning

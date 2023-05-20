@@ -1,8 +1,8 @@
-#include <stdio.h>
-#include <string.h>
-#include <stdint.h>
-#include <stdlib.h>
 #include <ctype.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "min-lisp.h"
 
@@ -13,8 +13,9 @@ static char operators[] = {'=', '<', '>', '+', '-', '*', '%'};
 
 struct _lisp {
     //LispHaspTable *env;
-    bool error; 
+    int error; 
     bool compose; 
+    size_t expr_size;
 };
 
 bool _is_op (char c) {
@@ -31,8 +32,9 @@ lisp_init (void) {
 
     lisp = (Lisp*) calloc (1, sizeof (Lisp));
 
-    lisp->error = FALSE;
+    lisp->error = 0;
     lisp->compose = FALSE;
+    lisp->expr_size = 0;
 
     return lisp;
 }
@@ -63,87 +65,113 @@ lisp_evaluate (Lisp * lisp, const char op, const int a, const int b) {
         case '%':
             return a % b;
         default: {
-            lisp->error = TRUE;
+            lisp->error = 5;
             return 0;
         }
     }
 }
 
 int
-lisp_parse (Lisp * lisp, const char * raw_expr, int * chars_moved) {
-    char *current_expr;
-    char *term;
-    char *tmp;
+lisp_parse (Lisp * lisp, char * expr, int * index) {
+    char curr_c;
+    bool has_left_parenthesis = FALSE;
+    bool has_left_val = FALSE;
+    bool has_right_val = FALSE;
     char op = 0;
-    char term_end;
-    char term_start;
-    int result = -1;
-    int term_len;
-    int val_a;
-    int val_b;
+    int left_val = 0;
+    int right_val = 0;
+    int num_i_start = -1;
+    char *num_string = 0;
+    int num;
 
-    current_expr = strdup (raw_expr);
-    printf ("current_expr: %s\n", current_expr);
-    if (current_expr == 0)
-        goto failed_expr;
+    for (;;++(*index)) {
+        curr_c = expr[*index];
+        if (curr_c == '(') {
+            if (has_left_parenthesis && op > 0) {
+                if (!has_left_val) {
+                    left_val = lisp_parse (lisp, expr, index);
+                    has_left_val = TRUE;
+                    continue;
+                }
+                else if (!has_right_val) {
+                    right_val = lisp_parse (lisp, expr, index);
+                    has_right_val = TRUE;
+                    continue;
+                }
+                else {
+                    lisp->error = 1;
+                    goto erroneous_expr;
+                }
 
-    for (;;) {
-        /* retrieve the next term from the expr */
-        for (;;) {
-            term = strsep (&current_expr, " ");
-            if (term == 0)
-                goto return_res;
-            term_len = strlen (term);
-            if (term_len == 0)
-                continue;
-            break;
-        }
-
-        /* analyze term*/
-        term_start = term[0];
-        term_end = term[term_len - 1];
-        if (term_start == '(') {
-            if (_is_op (term_end)) {
-                op = term_end;
+            }
+            else {
+                has_left_parenthesis = TRUE;
                 continue;
             }
-            goto failed_expr;
         }
-        else if (term_start == ')') 
-            goto failed_expr;
-        else if (term_end == ')') {
-            for (int i = 0; i < term_len - 1; ++i) {
-                if (!isdigit (term[i]))
-                    goto failed_expr;
+        if (curr_c == ')') {
+            if (has_left_parenthesis && op > 0 &&
+                has_left_val && has_right_val) {
+                goto return_result;
             }
-            tmp = calloc (term_len, sizeof (char));
-            memcpy (tmp, term, term_len - 1);
-            val_b = atoi (tmp);
-            free (tmp);
-            result = lisp_evaluate (lisp, op, val_a, val_b);
-            goto return_res;
+            else {
+                lisp->error = 2;
+                goto erroneous_expr;
+            }
         }
-        for (int i = 0; i < term_len; ++i) {
-            if (!isdigit (term[i]))
-                goto failed_expr;
+        if (_is_op (curr_c) && op == 0 &&
+                has_left_parenthesis && !has_left_val) {
+            op = curr_c;
+            continue;
         }
-        tmp = calloc (term_len + 1, sizeof (char));
-        memcpy (tmp, term, term_len);
-        val_a = atoi (tmp);
-        free (tmp);
+        for (; *index <= lisp->expr_size; ++(*index)) {
+            if (isdigit (curr_c)) {
+                if (num_i_start == -1)
+                    num_i_start = *index;
+                curr_c = expr[*index];
+            }
+            else {
+                if (num_i_start > -1) {
+                    --(*index);
+                    num_string = (char*) calloc (*index - num_i_start + 1, sizeof (char));
+                    memcpy (num_string, expr + num_i_start, *index - num_i_start);
+                    num = atoi (num_string);
+                    free (num_string);
+                    num_i_start = -1;
+                    --(*index);
+                    if (!has_left_val) {
+                        left_val = num;
+                        has_left_val = TRUE;
+                    }
+                    else if (!has_right_val) {
+                        right_val = num;
+                        has_right_val = TRUE;
+                    }
+                    else {
+                        lisp->error = 3;
+                        goto erroneous_expr;
+                    }
+                }
+                break;
+            }
+        }
     }
-failed_expr:
-    printf ("we do not handle this (yet)\n");
-    lisp->error = TRUE;
-return_res:
-    free (current_expr);
-    return result;
+erroneous_expr:
+    printf ("not supported (yet?)\n");
+return_result:
+    if (lisp->expr_size == *index)
+        free (expr);
+    return lisp_evaluate (lisp, op, left_val, right_val);
 }
 
 int
-lisp_run_expr (Lisp * lisp, const char * expr, int * error) {
-    int result, ignore;
-    result = lisp_parse (lisp, expr, &ignore);
+lisp_run_expr (Lisp * lisp, char * expr, int * error) {
+    int result;
+    int index = 0;
+
+    lisp->expr_size = strlen (expr);
+
+    result = lisp_parse (lisp, expr, &index);
     *error = lisp->error;
     return result;
 }
