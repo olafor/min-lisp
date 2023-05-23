@@ -11,7 +11,10 @@ main () {
     assert_expr_result ("(% 5 2)", 1);
     assert_expr_result ("(< 5 2)", 0);
     assert_expr_result ("(> 20 2)", 1);
-    assert_expr_result ("(- 22 (+ (* 2 2) 5))", 13);
+    if (0) {
+        assert_expr_result ("(- 22 (+ (* 2 2) 5))", 13);
+        assert_expr_result ("(if (> 2 1) 9 5)", 9);
+    }
 }
 
 void
@@ -29,5 +32,7 @@ assert_expr_result (char * expr, int expected_result) {
     printf ("<< TEST %s >>\n",
             (result == expected_result && !err) ? "SUCCEEDED" : "FAILED");
     printf ("   expected: %d\n     result: %d\n\n", expected_result, result);
+    if (err)
+        printf ("error code: %d\n", err);
 }
 

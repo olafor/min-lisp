@@ -5,64 +5,91 @@
 #include <string.h>
 
 #include "min-lisp.h"
+#include "tokens.h"
 
-#define NUMBER_OF_OPERATORS 7
+#define DEBUG 0
+#define ERROR 1
 
-typedef enum _bool {FALSE = 0, TRUE} bool;
-static char operators[] = {'=', '<', '>', '+', '-', '*', '%'};
+#if DEBUG
+    #define LISP_DEBUG (printf ("DEBUG %s: %d\n", __FILE__, __LINE__))
+#else
+    #define LISP_DEBUG
+#endif
+
+#if ERROR
+    #define LISP_ERROR (printf ("ERROR %s: %d\n", __FILE__, __LINE__))
+#else
+    #define LISP_ERROR
+#endif
+
+typedef enum _parse_state {
+    PARSE_STATE_NONE,
+    PARSE_STATE_LEFT_PAR,
+    PARSE_STATE_OP,
+    PARSE_STATE_ONE_VALUE,
+    PARSE_STATE_TWO_VALUES,
+    PARSE_STATE_IF,
+    PARSE_STATE_WHILE,
+    PARSE_STATE_FOR,
+    PARSE_STATE_COMPOSE,
+    PARSE_STATE_RIGHT_PAR
+} ParseState;
 
 struct _lisp {
     //LispHaspTable *env;
-    int error; 
+    ParseState parser_state;
     bool compose; 
+    char *expr;
+    int error; 
     size_t expr_size;
 };
-
-bool _is_op (char c) {
-    for (int i = 0; i < NUMBER_OF_OPERATORS; ++i) {
-        if (operators[i] == c)
-            return TRUE;
-    }
-    return FALSE;
-}
 
 Lisp *
 lisp_init (void) {
     Lisp *lisp;
+    LISP_DEBUG;
 
     lisp = (Lisp*) calloc (1, sizeof (Lisp));
 
-    lisp->error = 0;
     lisp->compose = FALSE;
+    lisp->error = 0;
+    lisp->expr = 0;
     lisp->expr_size = 0;
+    lisp->parser_state = PARSE_STATE_NONE;
 
     return lisp;
 }
 
 void
 lisp_free (Lisp * lisp) {
-    if (lisp == 0)
+    LISP_DEBUG;
+    if (!lisp)
         return;
 
     free (lisp);
 }
 
 int
-lisp_evaluate (Lisp * lisp, const char op, const int a, const int b) {
+lisp_evaluate (Lisp * lisp, const Token op, const int a, const int b) {
+    LISP_DEBUG;
     switch (op) {
-        case '=':
+        case EQ:
             return a == b;
-        case '<':
-            return a < b;
-        case '>':
+        case GT:
             return a > b;
-        case '+':
+        case GTE:
+            return a >= b;
+        case LT:
+            return a < b;
+        case LTE:
+            return a <= b;
+        case ADD:
             return a + b;
-        case '-':
+        case SUB:
             return a - b;
-        case '*':
+        case MUL:
             return a * b;
-        case '%':
+        case MOD:
             return a % b;
         default: {
             lisp->error = 5;
@@ -72,106 +99,146 @@ lisp_evaluate (Lisp * lisp, const char op, const int a, const int b) {
 }
 
 int
-lisp_parse (Lisp * lisp, char * expr, int * index) {
-    char curr_c;
-    bool has_left_parenthesis = FALSE;
-    bool has_left_val = FALSE;
-    bool has_right_val = FALSE;
-    char op = 0;
-    int left_val = 0;
-    int right_val = 0;
-    int num_i_start = -1;
+lisp_parse (Lisp * lisp, int * index) {
+    Token current_token = NO_TOKEN;
+    Token op = NO_TOKEN;
+    bool has_new_num = FALSE;
     char *num_string = 0;
-    int num;
+    char curr_c;
+    int left_val = -1;
+    int num = -1;
+    int num_i_start = -1;
+    int right_val = -1;
+    LISP_DEBUG;
 
-    for (;;++(*index)) {
-        curr_c = expr[*index];
-        if (curr_c == '(') {
-            if (has_left_parenthesis && op > 0) {
-                if (!has_left_val) {
-                    left_val = lisp_parse (lisp, expr, index);
-                    has_left_val = TRUE;
-                    continue;
-                }
-                else if (!has_right_val) {
-                    right_val = lisp_parse (lisp, expr, index);
-                    has_right_val = TRUE;
-                    continue;
-                }
-                else {
-                    lisp->error = 1;
-                    goto erroneous_expr;
-                }
+    for (;; ++(*index)) {
+        LISP_DEBUG;
+        current_token = token_from_string (lisp->expr, lisp->expr_size, index);
 
-            }
-            else {
-                has_left_parenthesis = TRUE;
-                continue;
-            }
-        }
-        if (curr_c == ')') {
-            if (has_left_parenthesis && op > 0 &&
-                has_left_val && has_right_val) {
-                goto return_result;
-            }
-            else {
-                lisp->error = 2;
-                goto erroneous_expr;
-            }
-        }
-        if (_is_op (curr_c) && op == 0 &&
-                has_left_parenthesis && !has_left_val) {
-            op = curr_c;
+        curr_c = lisp->expr[*index];
+
+        if (isspace (curr_c)) {
+            LISP_DEBUG;
             continue;
         }
-        for (; *index <= lisp->expr_size; ++(*index)) {
-            if (isdigit (curr_c)) {
-                if (num_i_start == -1)
-                    num_i_start = *index;
-                curr_c = expr[*index];
-            }
-            else {
-                if (num_i_start > -1) {
-                    --(*index);
-                    num_string = (char*) calloc (*index - num_i_start + 1, sizeof (char));
-                    memcpy (num_string, expr + num_i_start, *index - num_i_start);
-                    num = atoi (num_string);
-                    free (num_string);
-                    num_i_start = -1;
-                    --(*index);
-                    if (!has_left_val) {
-                        left_val = num;
-                        has_left_val = TRUE;
-                    }
-                    else if (!has_right_val) {
-                        right_val = num;
-                        has_right_val = TRUE;
-                    }
-                    else {
-                        lisp->error = 3;
-                        goto erroneous_expr;
-                    }
+
+        if (current_token == NO_TOKEN) {
+            LISP_DEBUG;
+            for (; *index <= lisp->expr_size; ++(*index)) {
+                if (isdigit (curr_c)) {
+                    LISP_DEBUG;
+                    if (num_i_start == -1)
+                        num_i_start = *index;
+                    curr_c = lisp->expr[*index];
                 }
-                break;
+                else {
+                    if (num_i_start > -1) {
+                        LISP_DEBUG;
+                        --(*index);
+                        num_string = (char*) calloc (*index - num_i_start + 1,
+                                sizeof (char));
+                        memcpy (num_string, lisp->expr + num_i_start,
+                                *index - num_i_start);
+                        num = atoi (num_string);
+                        has_new_num = TRUE;
+                        free (num_string);
+                        num_i_start = -1;
+                        --(*index);
+                    }
+                    break;
+                }
             }
         }
+
+        switch (lisp->parser_state) {
+            case PARSE_STATE_NONE:
+                switch (current_token) {
+                    case LEFT_PARENTHESIS:
+                        lisp->parser_state = PARSE_STATE_LEFT_PAR;
+                        break;
+                    default:
+                        LISP_ERROR;
+                        goto erroneous_expr;
+                }
+                break;
+            case PARSE_STATE_LEFT_PAR:
+                if (token_is_op (current_token) && !token_is_op (op)) {
+                    op = current_token;
+                    lisp->parser_state = PARSE_STATE_OP;
+                }
+                else {
+                    LISP_ERROR;
+                    goto erroneous_expr;
+                }
+                break;
+            case PARSE_STATE_OP:
+                if (has_new_num) {
+                    left_val = num;
+                    lisp->parser_state = PARSE_STATE_ONE_VALUE;
+                }
+                else if (current_token == LEFT_PARENTHESIS) {
+                    left_val = lisp_parse (lisp, index);
+                }
+                else {
+                    LISP_ERROR;
+                    goto erroneous_expr;
+                }
+                break;
+            case PARSE_STATE_ONE_VALUE:
+                if (has_new_num) {
+                    right_val = num;
+                    lisp->parser_state = PARSE_STATE_TWO_VALUES;
+                }
+                else if (current_token == LEFT_PARENTHESIS) {
+                    left_val = lisp_parse (lisp, index);
+                }
+                else {
+                    LISP_ERROR;
+                    goto erroneous_expr;
+                }
+                break;
+            case PARSE_STATE_TWO_VALUES:
+                switch (current_token) {
+                    LISP_DEBUG;
+                    case RIGHT_PARENTHESIS:
+                        lisp->parser_state = PARSE_STATE_RIGHT_PAR;
+                        goto return_result;
+                    default:
+                        LISP_ERROR;
+                        goto erroneous_expr;
+                }
+            default:
+                LISP_ERROR;
+                goto erroneous_expr;
+        }
+
+        current_token = NO_TOKEN;
+        has_new_num = FALSE;
     }
 erroneous_expr:
     printf ("not supported (yet?)\n");
+    return -1;
 return_result:
-    if (lisp->expr_size == *index)
-        free (expr);
     return lisp_evaluate (lisp, op, left_val, right_val);
 }
 
 int
 lisp_run_expr (Lisp * lisp, char * expr, int * error) {
+    LISP_DEBUG;
     int result;
     int index = 0;
 
-    lisp->expr_size = strlen (expr);
+    if (!lisp || !expr)
+        return -1;
 
-    result = lisp_parse (lisp, expr, &index);
+    if (lisp->expr)
+        free (lisp->expr);
+
+    lisp->expr = expr;
+    lisp->expr_size = strlen (expr);
+    printf ("expr_size: %d\n", lisp->expr_size);
+
+    result = lisp_parse (lisp, &index);
     *error = lisp->error;
     return result;
 }
