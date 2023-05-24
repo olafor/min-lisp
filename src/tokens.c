@@ -32,6 +32,9 @@ token_from_string (const char * s, const int string_size, int * index) {
         if (c == '%') {
             return MOD;
         }
+        if (c == '=') {
+            return EQ;
+        }
         if (c == '>') {
             if (string_size > *index && s[*index + 1] == '=') {
                 ++(*index);
@@ -103,4 +106,43 @@ bool token_is_op (Token token) {
         return FALSE;
     }
     return TRUE;
+}
+
+char *
+token_as_string (Token token) {
+    switch (token) {
+        case NO_TOKEN:
+            return "NO_TOKEN";
+        case LEFT_PARENTHESIS:
+            return "LEFT_PARENTHESIS";
+        case RIGHT_PARENTHESIS:
+            return "RIGHT_PARENTHESIS";
+        case EQ:
+            return "EQ";
+        case ADD:
+            return "ADD";
+        case SUB:
+            return "SUB";
+        case MUL:
+            return "MUL";
+        case MOD:
+            return "MOD";
+        case GT:
+            return "GT";
+        case GTE:
+            return "GTE";
+        case LT:
+            return "LT";
+        case LTE:
+            return "LTE";
+        case IF:
+            return "IF";
+        case WHILE:
+            return "WHILE";
+        case FOR:
+            return "FOR";
+        case COMPOSE:
+            return "COMPOSE";
+    }
+    return 0;
 }

@@ -26,5 +26,6 @@ typedef enum _token {
 
 Token token_from_string (const char * s, const int string_size, int * index);
 bool token_is_op (Token token);
+char *token_as_string (Token token);
 
 #endif /* _TOKENS_H_ */

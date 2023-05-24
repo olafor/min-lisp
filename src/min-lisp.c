@@ -8,7 +8,7 @@
 #include "tokens.h"
 
 #define DEBUG 0
-#define ERROR 1
+#define ERROR 0
 
 #if DEBUG
     #define LISP_DEBUG (printf ("DEBUG %s: %d\n", __FILE__, __LINE__))
@@ -35,9 +35,35 @@ typedef enum _parse_state {
     PARSE_STATE_RIGHT_PAR
 } ParseState;
 
+char*
+lisp_parse_state_as_string (ParseState ps) {
+    switch (ps) {
+        case PARSE_STATE_NONE:
+            return "PARSE_STATE_NONE";
+        case PARSE_STATE_LEFT_PAR:
+            return "PARSE_STATE_LEFT_PAR";
+        case PARSE_STATE_OP:
+            return "PARSE_STATE_OP";
+        case PARSE_STATE_ONE_VALUE:
+            return "PARSE_STATE_ONE_VALUE";
+        case PARSE_STATE_TWO_VALUES:
+            return "PARSE_STATE_TWO_VALUES";
+        case PARSE_STATE_IF:
+            return "PARSE_STATE_IF";
+        case PARSE_STATE_WHILE:
+            return "PARSE_STATE_WHILE";
+        case PARSE_STATE_FOR:
+            return "PARSE_STATE_FOR";
+        case PARSE_STATE_COMPOSE:
+            return "PARSE_STATE_COMPOSE";
+        case PARSE_STATE_RIGHT_PAR:
+            return "PARSE_STATE_RIGHT_PAR";
+    }
+    return 0;
+}
+
 struct _lisp {
     //LispHaspTable *env;
-    ParseState parser_state;
     bool compose; 
     char *expr;
     int error; 
@@ -55,7 +81,6 @@ lisp_init (void) {
     lisp->error = 0;
     lisp->expr = 0;
     lisp->expr_size = 0;
-    lisp->parser_state = PARSE_STATE_NONE;
 
     return lisp;
 }
@@ -98,16 +123,45 @@ lisp_evaluate (Lisp * lisp, const Token op, const int a, const int b) {
     }
 }
 
+bool
+lisp_val_from_string (Lisp * lisp, int * index, int * num) {
+    char *num_string = 0;
+    char curr_c = lisp->expr[*index];
+    int num_i_start = -1;
+
+    LISP_DEBUG;
+    for (; *index <= lisp->expr_size; ++(*index)) {
+        if (isdigit (curr_c)) {
+            LISP_DEBUG;
+            if (num_i_start == -1)
+                num_i_start = *index;
+            curr_c = lisp->expr[*index];
+        }
+        else {
+            if (num_i_start > -1) {
+                LISP_DEBUG;
+                --(*index);
+                num_string = (char*) calloc (*index - num_i_start + 1,
+                        sizeof (char));
+                memcpy (num_string, lisp->expr + num_i_start,
+                        *index - num_i_start);
+                *num = atoi (num_string);
+                free (num_string);
+                num_i_start = -1;
+                --(*index);
+                return TRUE;
+            }
+            return FALSE;
+        }
+    }
+}
 int
 lisp_parse (Lisp * lisp, int * index) {
+    ParseState parser_state = PARSE_STATE_NONE;
     Token current_token = NO_TOKEN;
     Token op = NO_TOKEN;
-    bool has_new_num = FALSE;
-    char *num_string = 0;
     char curr_c;
     int left_val = -1;
-    int num = -1;
-    int num_i_start = -1;
     int right_val = -1;
     LISP_DEBUG;
 
@@ -115,46 +169,23 @@ lisp_parse (Lisp * lisp, int * index) {
         LISP_DEBUG;
         current_token = token_from_string (lisp->expr, lisp->expr_size, index);
 
-        curr_c = lisp->expr[*index];
+        #if DEBUG
+            printf ("<token: %s>\n", token_as_string (current_token));
+            printf ("<parse state: %s>\n", lisp_parse_state_as_string (parser_state));
+        #endif
+
+        char curr_c = lisp->expr[*index];
 
         if (isspace (curr_c)) {
             LISP_DEBUG;
             continue;
         }
 
-        if (current_token == NO_TOKEN) {
-            LISP_DEBUG;
-            for (; *index <= lisp->expr_size; ++(*index)) {
-                if (isdigit (curr_c)) {
-                    LISP_DEBUG;
-                    if (num_i_start == -1)
-                        num_i_start = *index;
-                    curr_c = lisp->expr[*index];
-                }
-                else {
-                    if (num_i_start > -1) {
-                        LISP_DEBUG;
-                        --(*index);
-                        num_string = (char*) calloc (*index - num_i_start + 1,
-                                sizeof (char));
-                        memcpy (num_string, lisp->expr + num_i_start,
-                                *index - num_i_start);
-                        num = atoi (num_string);
-                        has_new_num = TRUE;
-                        free (num_string);
-                        num_i_start = -1;
-                        --(*index);
-                    }
-                    break;
-                }
-            }
-        }
-
-        switch (lisp->parser_state) {
+        switch (parser_state) {
             case PARSE_STATE_NONE:
                 switch (current_token) {
                     case LEFT_PARENTHESIS:
-                        lisp->parser_state = PARSE_STATE_LEFT_PAR;
+                        parser_state = PARSE_STATE_LEFT_PAR;
                         break;
                     default:
                         LISP_ERROR;
@@ -164,7 +195,7 @@ lisp_parse (Lisp * lisp, int * index) {
             case PARSE_STATE_LEFT_PAR:
                 if (token_is_op (current_token) && !token_is_op (op)) {
                     op = current_token;
-                    lisp->parser_state = PARSE_STATE_OP;
+                    parser_state = PARSE_STATE_OP;
                 }
                 else {
                     LISP_ERROR;
@@ -172,12 +203,18 @@ lisp_parse (Lisp * lisp, int * index) {
                 }
                 break;
             case PARSE_STATE_OP:
-                if (has_new_num) {
-                    left_val = num;
-                    lisp->parser_state = PARSE_STATE_ONE_VALUE;
+                if (lisp_val_from_string (lisp, index, &left_val)) {
+                    #if (DEBUG)
+                        printf ("new left val: %d\n", left_val);
+                    #endif
+                    parser_state = PARSE_STATE_ONE_VALUE;
                 }
                 else if (current_token == LEFT_PARENTHESIS) {
                     left_val = lisp_parse (lisp, index);
+                    #if (DEBUG)
+                        printf ("new left val: %d\n", left_val);
+                    #endif
+                    parser_state = PARSE_STATE_ONE_VALUE;
                 }
                 else {
                     LISP_ERROR;
@@ -185,12 +222,18 @@ lisp_parse (Lisp * lisp, int * index) {
                 }
                 break;
             case PARSE_STATE_ONE_VALUE:
-                if (has_new_num) {
-                    right_val = num;
-                    lisp->parser_state = PARSE_STATE_TWO_VALUES;
+                if (lisp_val_from_string (lisp, index, &right_val)) {
+                    #if (DEBUG)
+                        printf ("new right val: %d\n", right_val);
+                    #endif
+                    parser_state = PARSE_STATE_TWO_VALUES;
                 }
                 else if (current_token == LEFT_PARENTHESIS) {
-                    left_val = lisp_parse (lisp, index);
+                    right_val = lisp_parse (lisp, index);
+                    #if (DEBUG)
+                        printf ("new right val: %d\n", right_val);
+                    #endif
+                    parser_state = PARSE_STATE_TWO_VALUES;
                 }
                 else {
                     LISP_ERROR;
@@ -201,7 +244,7 @@ lisp_parse (Lisp * lisp, int * index) {
                 switch (current_token) {
                     LISP_DEBUG;
                     case RIGHT_PARENTHESIS:
-                        lisp->parser_state = PARSE_STATE_RIGHT_PAR;
+                        parser_state = PARSE_STATE_RIGHT_PAR;
                         goto return_result;
                     default:
                         LISP_ERROR;
@@ -213,7 +256,6 @@ lisp_parse (Lisp * lisp, int * index) {
         }
 
         current_token = NO_TOKEN;
-        has_new_num = FALSE;
     }
 erroneous_expr:
     printf ("not supported (yet?)\n");
@@ -236,7 +278,6 @@ lisp_run_expr (Lisp * lisp, char * expr, int * error) {
 
     lisp->expr = expr;
     lisp->expr_size = strlen (expr);
-    printf ("expr_size: %d\n", lisp->expr_size);
 
     result = lisp_parse (lisp, &index);
     *error = lisp->error;
