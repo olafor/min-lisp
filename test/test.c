@@ -1,17 +1,13 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "../src/utils.h"
 #include "../src/min-lisp.h"
+#include "../src/utils.h"
+#include "suites.h"
 
-typedef enum _test_suite {
-    ALL,
-    EVAL,
-    NESTING,
-    STATEMENT
-} TestSuite;
+int assert_expr_result (char *expr, int expected_result);
 
-void assert_expr_result (char *expr, int expected_result);
+int run_suite (char * name, TestArg * suite[]);
 
 int
 main (int argc, char *argv[]) {
@@ -27,26 +23,17 @@ main (int argc, char *argv[]) {
     }
 
     if (ts == ALL || ts == EVAL) {
-        assert_expr_result ("(+ 2 3)", 5);
-        assert_expr_result ("(% 5 2)", 1);
-        assert_expr_result ("(= 5 2)", 0);
-        assert_expr_result ("(= 5 5)", 1);
-        assert_expr_result ("(< 5 2)", 0);
-        assert_expr_result ("(<= 5 2)", 0);
-        assert_expr_result ("(<= 5 5)", 1);
-        assert_expr_result ("(> 20 2)", 1);
-        assert_expr_result ("(>= 20 2)", 1);
-        assert_expr_result ("(>= 2 2)", 1);
+        run_suite ("EVAL", suite_eval);
     }
     if (ts == ALL || ts == NESTING) {
-        assert_expr_result ("(- 22 (+ (* 2 2) 5))", 13);
+        run_suite ("NESTING", suite_nesting);
     }
     if (0 && (ts == ALL || ts == STATEMENT)) {
-        assert_expr_result ("(if (> 2 1) 9 5)", 9);
+        run_suite ("STATEMENT", suite_statement);
     }
 }
 
-void
+int
 assert_expr_result (char * expr, int expected_result) {
     Lisp *lisp;
     int result;
@@ -58,10 +45,22 @@ assert_expr_result (char * expr, int expected_result) {
      
     lisp_free (lisp);
 
-    printf ("<< TEST %s >>\n",
-            (result == expected_result && !err) ? "SUCCEEDED" : "FAILED");
-    printf ("   expected: %d\n     result: %d\n\n", expected_result, result);
-    if (err)
-        printf ("error code: %d\n", err);
+    if (result != expected_result && !err) {
+        printf ("ERROR: %s\n\texpected: %d\n\tresult: %d\n\n",
+                expr, expected_result, result);
+        return 0;
+    }
+    return 1;
 }
 
+int run_suite (char * name, TestArg * suite[]) {
+    printf ("\nKör TestSvit %s\n", name);
+    for (int i = 0; suite[i] != 0; ++i) {
+        if (!assert_expr_result (suite[i]->expr, suite[i]->expected_result)) {
+            printf ("\t>> TestSvit falerade!\n");
+            return 0;
+        }
+    }
+    printf ("\t>> TestSvit gick igenom\n");
+    return 1;
+}

@@ -125,7 +125,6 @@ lisp_evaluate (Lisp * lisp, const Token op, const int a, const int b) {
 
 bool
 lisp_val_from_string (Lisp * lisp, int * index, int * num) {
-    char *num_string = 0;
     char curr_c = lisp->expr[*index];
     int num_i_start = -1;
 
@@ -141,13 +140,7 @@ lisp_val_from_string (Lisp * lisp, int * index, int * num) {
             if (num_i_start > -1) {
                 LISP_DEBUG;
                 --(*index);
-                num_string = (char*) calloc (*index - num_i_start + 1,
-                        sizeof (char));
-                memcpy (num_string, lisp->expr + num_i_start,
-                        *index - num_i_start);
-                *num = atoi (num_string);
-                free (num_string);
-                num_i_start = -1;
+                *num = atoi (lisp->expr + num_i_start);
                 --(*index);
                 return TRUE;
             }
@@ -155,6 +148,7 @@ lisp_val_from_string (Lisp * lisp, int * index, int * num) {
         }
     }
 }
+
 int
 lisp_parse (Lisp * lisp, int * index) {
     ParseState parser_state = PARSE_STATE_NONE;
@@ -203,14 +197,14 @@ lisp_parse (Lisp * lisp, int * index) {
                 }
                 break;
             case PARSE_STATE_OP:
-                if (lisp_val_from_string (lisp, index, &left_val)) {
+                if (current_token == LEFT_PARENTHESIS) {
+                    left_val = lisp_parse (lisp, index);
                     #if (DEBUG)
                         printf ("new left val: %d\n", left_val);
                     #endif
                     parser_state = PARSE_STATE_ONE_VALUE;
                 }
-                else if (current_token == LEFT_PARENTHESIS) {
-                    left_val = lisp_parse (lisp, index);
+                else if (lisp_val_from_string (lisp, index, &left_val)) {
                     #if (DEBUG)
                         printf ("new left val: %d\n", left_val);
                     #endif
@@ -222,14 +216,14 @@ lisp_parse (Lisp * lisp, int * index) {
                 }
                 break;
             case PARSE_STATE_ONE_VALUE:
-                if (lisp_val_from_string (lisp, index, &right_val)) {
+                if (current_token == LEFT_PARENTHESIS) {
+                    right_val = lisp_parse (lisp, index);
                     #if (DEBUG)
                         printf ("new right val: %d\n", right_val);
                     #endif
                     parser_state = PARSE_STATE_TWO_VALUES;
                 }
-                else if (current_token == LEFT_PARENTHESIS) {
-                    right_val = lisp_parse (lisp, index);
+                else if (lisp_val_from_string (lisp, index, &right_val)) {
                     #if (DEBUG)
                         printf ("new right val: %d\n", right_val);
                     #endif
