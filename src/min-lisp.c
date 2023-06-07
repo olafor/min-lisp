@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "min-lisp.h"
+#include "recursive_descent_tree.h"
 #include "tokens.h"
 
 #define DEBUG 0
@@ -68,6 +69,8 @@ struct _lisp {
     char *expr;
     int error; 
     size_t expr_size;
+    RdtNode *rdt_tree;
+    RdtNode *current_rdt_node;
 };
 
 Lisp *
@@ -81,6 +84,8 @@ lisp_init (void) {
     lisp->error = 0;
     lisp->expr = 0;
     lisp->expr_size = 0;
+    lisp->rdt_tree = 0;
+    lisp->current_rdt_node = 0;
 
     return lisp;
 }
@@ -90,6 +95,8 @@ lisp_free (Lisp * lisp) {
     LISP_DEBUG;
     if (!lisp)
         return;
+
+    rdt_node_free (lisp->rdt_tree);
 
     free (lisp);
 }
@@ -139,9 +146,9 @@ lisp_val_from_string (Lisp * lisp, int * index, int * num) {
         else {
             if (num_i_start > -1) {
                 LISP_DEBUG;
-                --(*index);
                 *num = atoi (lisp->expr + num_i_start);
-                --(*index);
+                rdt_node_add_val (lisp->current_rdt_node, *num);
+                *index -= 2;
                 return TRUE;
             }
             return FALSE;
@@ -152,12 +159,22 @@ lisp_val_from_string (Lisp * lisp, int * index, int * num) {
 int
 lisp_parse (Lisp * lisp, int * index) {
     ParseState parser_state = PARSE_STATE_NONE;
+    RdtNode *rtd_node_parent;
     Token current_token = NO_TOKEN;
     Token op = NO_TOKEN;
-    char curr_c;
     int left_val = -1;
     int right_val = -1;
+    int result = -1;
+
     LISP_DEBUG;
+
+    if (!lisp->rdt_tree) {
+        lisp->rdt_tree = rdt_node_init (0, 0);
+        lisp->current_rdt_node = lisp->rdt_tree;
+    }
+    else {
+        lisp->current_rdt_node = rdt_node_add_child (lisp->current_rdt_node);
+    }
 
     for (;; ++(*index)) {
         LISP_DEBUG;
@@ -168,9 +185,7 @@ lisp_parse (Lisp * lisp, int * index) {
             printf ("<parse state: %s>\n", lisp_parse_state_as_string (parser_state));
         #endif
 
-        char curr_c = lisp->expr[*index];
-
-        if (isspace (curr_c)) {
+        if (isspace (lisp->expr[*index])) {
             LISP_DEBUG;
             continue;
         }
@@ -189,6 +204,7 @@ lisp_parse (Lisp * lisp, int * index) {
             case PARSE_STATE_LEFT_PAR:
                 if (token_is_op (current_token) && !token_is_op (op)) {
                     op = current_token;
+                    rdt_node_add_op (lisp->current_rdt_node, token_as_string (op));
                     parser_state = PARSE_STATE_OP;
                 }
                 else {
@@ -253,9 +269,19 @@ lisp_parse (Lisp * lisp, int * index) {
     }
 erroneous_expr:
     printf ("not supported (yet?)\n");
-    return -1;
+    return result;
 return_result:
-    return lisp_evaluate (lisp, op, left_val, right_val);
+    result = lisp_evaluate (lisp, op, left_val, right_val);
+    rdt_node_add_res (lisp->current_rdt_node, result);
+    rtd_node_parent = rdt_node_get_parent (lisp->current_rdt_node);
+    if (rtd_node_parent)
+        lisp->current_rdt_node = rtd_node_parent;
+    return result;
+}
+
+void
+lisp_print_rdt_tree (Lisp * lisp) {
+    rdt_node_print_tree (lisp->rdt_tree);
 }
 
 int

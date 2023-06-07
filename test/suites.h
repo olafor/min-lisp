@@ -17,18 +17,21 @@ typedef struct _test_args {
 
 /* testsvit eval */
 TestArg test_a1 = {"(+ 2 3)", 5};
-TestArg test_a2 = {"(% 5 2)", 1};
-TestArg test_a3 = {"(= 5 2)", 0};
-TestArg test_a4 = {"(= 5 5)", 1};
-TestArg test_a5 = {"(< 5 2)", 0};
-TestArg test_a6 = {"(<= 5 2)", 0};
-TestArg test_a7 = {"(<= 5 5)", 1};
-TestArg test_a8 = {"(> 20 2)", 1};
-TestArg test_a9 = {"(>= 20 2)", 1};
+TestArg test_a2 = {"(- 5 3)", 2};
+TestArg test_a3 = {"(% 5 2)", 1};
+TestArg test_a4 = {"(= 5 2)", 0};
+TestArg test_a5 = {"(= 5 5)", 1};
+TestArg test_a6 = {"(< 5 2)", 0};
+TestArg test_a7 = {"(<= 5 2)", 0};
+TestArg test_a8 = {"(<= 5 5)", 1};
+TestArg test_a9 = {"(> 20 2)", 1};
 TestArg test_a10 = {"(>= 20 2)", 1};
+TestArg test_a11 = {"(>= 20 20)", 1};
 
 /* testsvit nesting */
 TestArg test_b1 = {"(- 22 (+ (* 2 2) 5))", 13};
+TestArg test_b2 = {"(= (* 3 3) (+ 4 (- 19 14)))", 1};
+TestArg test_b3 = {"(= (% 3 2) (+ 4 5))", 0};
 
 /* testsvit statement */
 TestArg test_c2 = {"(if (> 2 1) 9 5)", 9};
@@ -46,16 +49,19 @@ TestArg *suite_eval[] = {
     &test_a8,
     &test_a9,
     &test_a10,
+    &test_a11,
     0,
 };
 
 TestArg *suite_nesting[] = {
     &test_b1,
+    &test_b2,
+    &test_b3,
     0
 };
 
 TestArg *suite_statement[] = {
-    &test12,
+    &test_c2,
     0
 };
 
