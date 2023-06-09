@@ -26,10 +26,10 @@ main (int argc, char *argv[]) {
         run_suite ("EVAL", suite_eval, 0);
     }
     if (ts == ALL || ts == NESTING) {
-        run_suite ("NESTING", suite_nesting, 1);
+        run_suite ("NESTING", suite_nesting, 0);
     }
-    if (0 && (ts == ALL || ts == STATEMENT)) {
-        run_suite ("STATEMENT", suite_statement, 1);
+    if (ts == ALL || ts == STATEMENT) {
+        run_suite ("STATEMENT", suite_statement, 0);
     }
 }
 
@@ -60,7 +60,7 @@ int run_suite (char * name, TestArg * suite[], int do_print) {
     printf ("\nKör TestSvit %s\n", name);
     for (int i = 0; suite[i] != 0; ++i) {
         if (!assert_expr_result (suite[i]->expr, suite[i]->expected_result, do_print)) {
-            printf ("\t>> TestSvit falerade!\n");
+            printf ("\t>> TestSvit fallerade!\n");
             return 0;
         }
     }

@@ -16,6 +16,7 @@ Därmed skriver jag en förenklad lisptolk i C.
 ### Rekursivt Nedstigande Träd
 Varje lisputtryck kan skriva ut med samtliga steg i tolkningen.
 Exempelvis ger uttrycket "(= (* 3 3) (+ 4 (- 19 14)))" följande utskrift:
+```
 (
    EQ
     (
@@ -33,3 +34,4 @@ Exempelvis ger uttrycket "(= (* 3 3) (+ 4 (- 19 14)))" följande utskrift:
          ) -> 5
     ) -> 9
 ) -> 1
+```

@@ -19,7 +19,8 @@ typedef enum _token {
     IF,
     WHILE,
     FOR,
-    COMPOSE
+    COMPOSE,
+    QUOTE
 } Token;
 
 /* (sub)string that evaluates to token never contains numbers */

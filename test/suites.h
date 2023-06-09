@@ -34,7 +34,12 @@ TestArg test_b2 = {"(= (* 3 3) (+ 4 (- 19 14)))", 1};
 TestArg test_b3 = {"(= (% 3 2) (+ 4 5))", 0};
 
 /* testsvit statement */
-TestArg test_c2 = {"(if (> 2 1) 9 5)", 9};
+TestArg test_c1 = {"(if 0 13 4)", 4};
+TestArg test_c2 = {"(if 1 13 4)", 13};
+TestArg test_c3 = {"(if (> 2 1) 9 5)", 9};
+TestArg test_c4 = {"(if (= 2 2) (+ 9 50) 5)", 59};
+TestArg test_c5 = {"(if (= 3 2) (+ 9 50) (* 3 4))", 12};
+TestArg test_c6 = {"(if (<= 1 2) (if (= 1 1) 33 66) (* 3 4))", 33};
 
 /* HÄR FÖLJER TESTSVITERNA */
 
@@ -61,7 +66,12 @@ TestArg *suite_nesting[] = {
 };
 
 TestArg *suite_statement[] = {
+    &test_c1,
     &test_c2,
+    &test_c3,
+    &test_c4,
+    &test_c5,
+    &test_c6,
     0
 };
 

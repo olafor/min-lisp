@@ -4,12 +4,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "lisp-value.h"
 #include "min-lisp.h"
-#include "recursive_descent_tree.h"
+#include "recursive-descent-tree.h"
 #include "tokens.h"
 
 #define DEBUG 0
-#define ERROR 0
+#define ERROR 1
 
 #if DEBUG
     #define LISP_DEBUG (printf ("DEBUG %s: %d\n", __FILE__, __LINE__))
@@ -26,15 +27,22 @@
 typedef enum _parse_state {
     PARSE_STATE_NONE,
     PARSE_STATE_LEFT_PAR,
+    PARSE_STATE_IF,
     PARSE_STATE_OP,
     PARSE_STATE_ONE_VALUE,
     PARSE_STATE_TWO_VALUES,
-    PARSE_STATE_IF,
-    PARSE_STATE_WHILE,
-    PARSE_STATE_FOR,
-    PARSE_STATE_COMPOSE,
+    PARSE_STATE_THREE_VALUES,
     PARSE_STATE_RIGHT_PAR
 } ParseState;
+
+typedef enum _statement {
+    NO_STATEMENT,
+    QUOTE_STATEMENT,
+    IF_STATEMENT,
+    FOR_STATEMENT,
+    WHILE_STATEMENT,
+    COMPOSE_STATEMENT
+} Statement;
 
 char*
 lisp_parse_state_as_string (ParseState ps) {
@@ -43,35 +51,70 @@ lisp_parse_state_as_string (ParseState ps) {
             return "PARSE_STATE_NONE";
         case PARSE_STATE_LEFT_PAR:
             return "PARSE_STATE_LEFT_PAR";
+        case PARSE_STATE_IF:
+            return "PARSE_STATE_IF";
         case PARSE_STATE_OP:
             return "PARSE_STATE_OP";
         case PARSE_STATE_ONE_VALUE:
             return "PARSE_STATE_ONE_VALUE";
         case PARSE_STATE_TWO_VALUES:
             return "PARSE_STATE_TWO_VALUES";
-        case PARSE_STATE_IF:
-            return "PARSE_STATE_IF";
-        case PARSE_STATE_WHILE:
-            return "PARSE_STATE_WHILE";
-        case PARSE_STATE_FOR:
-            return "PARSE_STATE_FOR";
-        case PARSE_STATE_COMPOSE:
-            return "PARSE_STATE_COMPOSE";
+        case PARSE_STATE_THREE_VALUES:
+            return "PARSE_STATE_THREE_VALUES";
         case PARSE_STATE_RIGHT_PAR:
             return "PARSE_STATE_RIGHT_PAR";
     }
     return 0;
 }
 
+char *
+lisp_parse_statement_as_string (Statement st) {
+    switch (st) {
+        case NO_STATEMENT:
+            return "NO_STATEMENT";
+        case IF_STATEMENT:
+            return "IF";
+        case FOR_STATEMENT:
+            return "FOR";
+        case WHILE_STATEMENT:
+            return "WHILE";
+        case QUOTE_STATEMENT:
+            return "QUOTE";
+        case COMPOSE_STATEMENT:
+            return "COMPOSE";
+    }
+}
+
 struct _lisp {
-    //LispHaspTable *env;
-    bool compose; 
+    //LispHashTable *env;
     char *expr;
     int error; 
-    size_t expr_size;
+    size_t expr_size;;
     RdtNode *rdt_tree;
     RdtNode *current_rdt_node;
 };
+
+Statement
+lisp_parse_check_if_statement (Lisp * lisp, Statement existing, Token token) {
+    LISP_DEBUG;
+    if (existing)
+        return existing;
+
+    Statement statement;
+
+    switch (token) {
+        case IF:
+            statement = IF_STATEMENT;
+            break;
+        default:
+            return NO_STATEMENT;
+    }
+
+    rdt_node_add_statement (lisp->current_rdt_node,
+            lisp_parse_statement_as_string (statement));
+
+    return statement;
+}
 
 Lisp *
 lisp_init (void) {
@@ -80,7 +123,6 @@ lisp_init (void) {
 
     lisp = (Lisp*) calloc (1, sizeof (Lisp));
 
-    lisp->compose = FALSE;
     lisp->error = 0;
     lisp->expr = 0;
     lisp->expr_size = 0;
@@ -101,28 +143,52 @@ lisp_free (Lisp * lisp) {
     free (lisp);
 }
 
-int
-lisp_evaluate (Lisp * lisp, const Token op, const int a, const int b) {
+LispValue*
+lisp_evaluate (Lisp * lisp, const Token op, const LispValue * val_a,
+                                            const LispValue * val_b) {
     LISP_DEBUG;
+    int *a = (int*) lisp_value_get (val_a);
+    int *b = (int*) lisp_value_get (val_b);
+    int tmp = 0;
+    LispValue *result = lisp_value_init (POS_INT_TYPE);
+
     switch (op) {
         case EQ:
-            return a == b;
+            tmp = *a == *b;
+            lisp_value_set_nonstr (result, &tmp, sizeof (int));
+            return result;
         case GT:
-            return a > b;
+            tmp = *a > *b;
+            lisp_value_set_nonstr (result, &tmp, sizeof (int));
+            return result;
         case GTE:
-            return a >= b;
+            tmp = *a >= *b;
+            lisp_value_set_nonstr (result, &tmp, sizeof (int));
+            return result;
         case LT:
-            return a < b;
+            tmp = *a < *b;
+            lisp_value_set_nonstr (result, &tmp, sizeof (int));
+            return result;
         case LTE:
-            return a <= b;
+            tmp = *a <= *b;
+            lisp_value_set_nonstr (result, &tmp, sizeof (int));
+            return result;
         case ADD:
-            return a + b;
+            tmp = *a + *b;
+            lisp_value_set_nonstr (result, &tmp, sizeof (int));
+            return result;
         case SUB:
-            return a - b;
+            tmp = *a - *b;
+            lisp_value_set_nonstr (result, &tmp, sizeof (int));
+            return result;
         case MUL:
-            return a * b;
+            tmp = *a * *b;
+            lisp_value_set_nonstr (result, &tmp, sizeof (int));
+            return result;
         case MOD:
-            return a % b;
+            tmp = *a % *b;
+            lisp_value_set_nonstr (result, &tmp, sizeof (int));
+            return result;
         default: {
             lisp->error = 5;
             return 0;
@@ -131,9 +197,10 @@ lisp_evaluate (Lisp * lisp, const Token op, const int a, const int b) {
 }
 
 bool
-lisp_val_from_string (Lisp * lisp, int * index, int * num) {
+lisp_val_from_string (Lisp * lisp, int * index, LispValue * lv) {
     char curr_c = lisp->expr[*index];
     int num_i_start = -1;
+    int num;
 
     LISP_DEBUG;
     for (; *index <= lisp->expr_size; ++(*index)) {
@@ -146,8 +213,9 @@ lisp_val_from_string (Lisp * lisp, int * index, int * num) {
         else {
             if (num_i_start > -1) {
                 LISP_DEBUG;
-                *num = atoi (lisp->expr + num_i_start);
-                rdt_node_add_val (lisp->current_rdt_node, *num);
+                num = atoi (lisp->expr + num_i_start);
+                lisp_value_set_nonstr (lv, (void*)&num, sizeof (int));
+                rdt_node_add_val (lisp->current_rdt_node, lv);
                 *index -= 2;
                 return TRUE;
             }
@@ -156,34 +224,41 @@ lisp_val_from_string (Lisp * lisp, int * index, int * num) {
     }
 }
 
-int
+LispValue *
 lisp_parse (Lisp * lisp, int * index) {
     ParseState parser_state = PARSE_STATE_NONE;
     RdtNode *rtd_node_parent;
+    Statement statement = NO_STATEMENT;
     Token current_token = NO_TOKEN;
     Token op = NO_TOKEN;
-    int left_val = -1;
-    int right_val = -1;
-    int result = -1;
+    LispValue *val_a = 0;
+    LispValue *val_b = 0;
+    LispValue *val_c = 0;
+    LispValue *result = 0;
+    int *tmp = 0;
 
     LISP_DEBUG;
 
     if (!lisp->rdt_tree) {
+        LISP_DEBUG;
         lisp->rdt_tree = rdt_node_init (0, 0);
         lisp->current_rdt_node = lisp->rdt_tree;
     }
     else {
+        LISP_DEBUG;
         lisp->current_rdt_node = rdt_node_add_child (lisp->current_rdt_node);
     }
 
     for (;; ++(*index)) {
         LISP_DEBUG;
         current_token = token_from_string (lisp->expr, lisp->expr_size, index);
+        statement = lisp_parse_check_if_statement (lisp, statement, current_token);
 
-        #if DEBUG
-            printf ("<token: %s>\n", token_as_string (current_token));
+#if DEBUG
+            printf ("<token      : %s>\n", token_as_string (current_token));
             printf ("<parse state: %s>\n", lisp_parse_state_as_string (parser_state));
-        #endif
+            printf ("<statement  : %s>\n", lisp_parse_statement_as_string (statement));
+#endif
 
         if (isspace (lisp->expr[*index])) {
             LISP_DEBUG;
@@ -192,6 +267,7 @@ lisp_parse (Lisp * lisp, int * index) {
 
         switch (parser_state) {
             case PARSE_STATE_NONE:
+                LISP_DEBUG;
                 switch (current_token) {
                     case LEFT_PARENTHESIS:
                         parser_state = PARSE_STATE_LEFT_PAR;
@@ -202,80 +278,136 @@ lisp_parse (Lisp * lisp, int * index) {
                 }
                 break;
             case PARSE_STATE_LEFT_PAR:
+                LISP_DEBUG;
                 if (token_is_op (current_token) && !token_is_op (op)) {
+                    LISP_DEBUG;
                     op = current_token;
                     rdt_node_add_op (lisp->current_rdt_node, token_as_string (op));
                     parser_state = PARSE_STATE_OP;
+                    break;
+                }
+                else if (statement == IF_STATEMENT) {
+                    LISP_DEBUG;
+                    parser_state = PARSE_STATE_IF;
                 }
                 else {
                     LISP_ERROR;
                     goto erroneous_expr;
                 }
-                break;
+            case PARSE_STATE_IF:
             case PARSE_STATE_OP:
+                LISP_DEBUG;
+                val_a = lisp_value_init (POS_INT_TYPE);
                 if (current_token == LEFT_PARENTHESIS) {
-                    left_val = lisp_parse (lisp, index);
-                    #if (DEBUG)
-                        printf ("new left val: %d\n", left_val);
-                    #endif
+                    LISP_DEBUG;
+                    val_a = lisp_parse (lisp, index);
                     parser_state = PARSE_STATE_ONE_VALUE;
                 }
-                else if (lisp_val_from_string (lisp, index, &left_val)) {
-                    #if (DEBUG)
-                        printf ("new left val: %d\n", left_val);
-                    #endif
+                else if (lisp_val_from_string (lisp, index, val_a)) {
+                    LISP_DEBUG;
                     parser_state = PARSE_STATE_ONE_VALUE;
                 }
                 else {
                     LISP_ERROR;
+                    lisp_value_free (val_a);
                     goto erroneous_expr;
                 }
+#if DEBUG
+                tmp = (int*) lisp_value_get (val_a);
+                printf ("val_a: %d\n", *tmp);
+#endif
                 break;
             case PARSE_STATE_ONE_VALUE:
+                LISP_DEBUG;
+                val_b = lisp_value_init (POS_INT_TYPE);
                 if (current_token == LEFT_PARENTHESIS) {
-                    right_val = lisp_parse (lisp, index);
-                    #if (DEBUG)
-                        printf ("new right val: %d\n", right_val);
-                    #endif
+                    val_b = lisp_parse (lisp, index);
                     parser_state = PARSE_STATE_TWO_VALUES;
                 }
-                else if (lisp_val_from_string (lisp, index, &right_val)) {
-                    #if (DEBUG)
-                        printf ("new right val: %d\n", right_val);
-                    #endif
+                else if (lisp_val_from_string (lisp, index, val_b)) {
                     parser_state = PARSE_STATE_TWO_VALUES;
+                }
+                else {
+                    LISP_ERROR;
+                    lisp_value_free (val_b);
+                    goto erroneous_expr;
+                }
+#if DEBUG
+                tmp = (int*) lisp_value_get (val_b);
+                printf ("val_b: %d\n", *tmp);
+#endif
+                break;
+            case PARSE_STATE_TWO_VALUES:
+                LISP_DEBUG;
+                if (current_token == RIGHT_PARENTHESIS) {
+                    parser_state = PARSE_STATE_RIGHT_PAR;
+                    goto result_no_statement;
+                }
+                if (statement == IF_STATEMENT) {
+                    val_c = lisp_value_init (POS_INT_TYPE);
+                    if (current_token == LEFT_PARENTHESIS) {
+                        val_c = lisp_parse (lisp, index);
+                        parser_state = PARSE_STATE_THREE_VALUES;
+                    }
+                    else if (lisp_val_from_string (lisp, index, val_c)) {
+                        parser_state = PARSE_STATE_THREE_VALUES;
+                    }
                 }
                 else {
                     LISP_ERROR;
                     goto erroneous_expr;
                 }
+#if DEBUG
+                tmp = (int*) lisp_value_get (val_c);
+                printf ("val_c: %d\n", *tmp);
+#endif
                 break;
-            case PARSE_STATE_TWO_VALUES:
-                switch (current_token) {
-                    LISP_DEBUG;
-                    case RIGHT_PARENTHESIS:
-                        parser_state = PARSE_STATE_RIGHT_PAR;
-                        goto return_result;
-                    default:
-                        LISP_ERROR;
-                        goto erroneous_expr;
+            case PARSE_STATE_THREE_VALUES:
+                LISP_DEBUG;
+                if (statement == IF_STATEMENT) {
+                        LISP_DEBUG;
+                        if (current_token == RIGHT_PARENTHESIS) {
+                            parser_state = PARSE_STATE_RIGHT_PAR;
+                            goto result_if_statement;
+                        }
                 }
-            default:
                 LISP_ERROR;
                 goto erroneous_expr;
-        }
 
         current_token = NO_TOKEN;
+        }
     }
 erroneous_expr:
     printf ("not supported (yet?)\n");
     return result;
-return_result:
-    result = lisp_evaluate (lisp, op, left_val, right_val);
+result_if_statement:
+    if (lisp_value_is_true (val_a)) {
+        result = lisp_value_ref (val_b);
+    }
+    else {
+        result = lisp_value_ref (val_c);
+    }
     rdt_node_add_res (lisp->current_rdt_node, result);
     rtd_node_parent = rdt_node_get_parent (lisp->current_rdt_node);
     if (rtd_node_parent)
         lisp->current_rdt_node = rtd_node_parent;
+
+    lisp_value_unref (val_a);
+    lisp_value_unref (val_b);
+    lisp_value_unref (val_c);
+
+    return result;
+result_no_statement:
+    result = lisp_evaluate (lisp, op, val_a, val_b);
+    rdt_node_add_res (lisp->current_rdt_node, result);
+    rtd_node_parent = rdt_node_get_parent (lisp->current_rdt_node);
+    if (rtd_node_parent)
+        lisp->current_rdt_node = rtd_node_parent;
+
+    lisp_value_free (val_a);
+    lisp_value_free (val_b);
+    lisp_value_free (val_c);
+
     return result;
 }
 
@@ -287,7 +419,7 @@ lisp_print_rdt_tree (Lisp * lisp) {
 int
 lisp_run_expr (Lisp * lisp, char * expr, int * error) {
     LISP_DEBUG;
-    int result;
+    int *result = 0;
     int index = 0;
 
     if (!lisp || !expr)
@@ -299,7 +431,7 @@ lisp_run_expr (Lisp * lisp, char * expr, int * error) {
     lisp->expr = expr;
     lisp->expr_size = strlen (expr);
 
-    result = lisp_parse (lisp, &index);
+    result = (int*) lisp_value_get (lisp_parse (lisp, &index));
     *error = lisp->error;
-    return result;
+    return *result;
 }
