@@ -7,20 +7,21 @@ typedef enum _token {
     NO_TOKEN,
     LEFT_PARENTHESIS,
     RIGHT_PARENTHESIS,
-    EQ,
     ADD,
-    SUB,
-    MUL,
-    MOD,
+    COMPOSE,
+    DEFVAR,
+    EQ,
+    FOR,
     GT,
     GTE,
+    IF,
     LT,
     LTE,
-    IF,
-    WHILE,
-    FOR,
-    COMPOSE,
-    QUOTE
+    MOD,
+    MUL,
+    QUOTE,
+    SUB,
+    WHILE
 } Token;
 
 /* (sub)string that evaluates to token never contains numbers */

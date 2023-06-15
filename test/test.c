@@ -20,16 +20,21 @@ main (int argc, char *argv[]) {
             ts = NESTING;
         else if (strcmp (argv[1], "statement") == 0)
             ts = STATEMENT;
+        else if (strcmp (argv[1], "env") == 0)
+            ts = ENV;
     }
 
-    if (ts == ALL || ts == EVAL) {
+    if (1 && ts == ALL || ts == EVAL) {
         run_suite ("EVAL", suite_eval, 0);
     }
-    if (ts == ALL || ts == NESTING) {
+    if (1 && ts == ALL || ts == NESTING) {
         run_suite ("NESTING", suite_nesting, 0);
     }
-    if (ts == ALL || ts == STATEMENT) {
+    if (1 && ts == ALL || ts == STATEMENT) {
         run_suite ("STATEMENT", suite_statement, 0);
+    }
+    if (1 && ts == ALL || ts == ENV) {
+        run_suite ("ENV", suite_env, 1);
     }
 }
 

@@ -8,8 +8,10 @@ Därmed skriver jag en förenklad lisptolk i C.
 ## Specifikation
 
 ### Operationer som stöds
+vanliga operationer så som '+' och '-' stödjs, men än så länge endast för positiva heltal.
 
 ### Satser som stöds
+Än så länge endast if-satser
 
 ### Praktisk användning
 

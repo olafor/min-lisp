@@ -72,6 +72,10 @@ token_from_string (const char * s, const int string_size, int * index) {
                 final_token = WHILE;
                 goto return_token;
             }
+            if (strcmp (token_string, "defvar") == 0) {
+                final_token = DEFVAR;
+                goto return_token;
+            }
             if (strcmp (token_string, "compose") == 0) {
                 final_token = COMPOSE;
                 goto return_token;
@@ -92,23 +96,23 @@ return_no_token:
 return_token:
     if (token_string)
         free (token_string);
-    *index += i;
+    *index += i + 1;
     return final_token;
 }
 
 bool token_is_op (Token token) {
-    if (token != EQ  &&
-        token != ADD &&
-        token != SUB &&
-        token != MUL &&
-        token != MOD &&
-        token != GT  &&
-        token != GTE &&
-        token != LT  &&
-        token != LTE) {
-        return FALSE;
+    if (token == EQ  ||
+        token == ADD ||
+        token == SUB ||
+        token == MUL ||
+        token == MOD ||
+        token == GT  ||
+        token == GTE ||
+        token == LT  ||
+        token == LTE) {
+        return TRUE;
     }
-    return TRUE;
+    return FALSE;
 }
 
 char *
@@ -146,6 +150,8 @@ token_as_string (Token token) {
             return "WHILE";
         case FOR:
             return "FOR";
+        case DEFVAR:
+            return "DEFVAR";
         case COMPOSE:
             return "COMPOSE";
     }

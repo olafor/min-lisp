@@ -3,6 +3,7 @@
 
 typedef enum _test_suite {
     ALL,
+    ENV,
     EVAL,
     NESTING,
     STATEMENT
@@ -41,6 +42,13 @@ TestArg test_c4 = {"(if (= 2 2) (+ 9 50) 5)", 59};
 TestArg test_c5 = {"(if (= 3 2) (+ 9 50) (* 3 4))", 12};
 TestArg test_c6 = {"(if (<= 1 2) (if (= 1 1) 33 66) (* 3 4))", 33};
 
+/* testsvit env */
+TestArg test_d1 = {"((defvar test 99)(test))", 99};
+TestArg test_d2 = {"((defvar test (+ 10 10))(test))", 20};
+TestArg test_d3 = {"((defvar test (+ 10 10)) (+ test 6))", 26};
+TestArg test_d4 = {"((defvar test (+ 10 1)) (+ test test))", 22};
+TestArg test_d5 = {"((defvar x 9)(defvar y 2)(+ x y))", 11};
+
 /* HÄR FÖLJER TESTSVITERNA */
 
 TestArg *suite_eval[] = {
@@ -72,6 +80,15 @@ TestArg *suite_statement[] = {
     &test_c4,
     &test_c5,
     &test_c6,
+    0
+};
+
+TestArg *suite_env[] = {
+    &test_d1,
+    &test_d2,
+    &test_d3,
+    &test_d4,
+    //&test_d5,
     0
 };
 
